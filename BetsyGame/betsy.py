@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 # Reference(s): http://aima.eecs.berkeley.edu/python/games.html
-#               https://en.wikipedia.org/wiki/Alpha%E2%80%93beta_pruning 
+#               https://en.wikipedia.org/wiki/Alpha%E2%80%93beta_pruning  
 
 import sys
 import time
