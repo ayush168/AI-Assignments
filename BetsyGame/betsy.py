@@ -1,182 +1,266 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Oct 19 00:46:59 2018
+#!/usr/bin/env python2
+# Reference(s): http://aima.eecs.berkeley.edu/python/games.html
+#               https://en.wikipedia.org/wiki/Alpha%E2%80%93beta_pruning 
 
-@author: Ayush
-"""
-
-import numpy as np
 import sys
 import time
+import copy
+from types import NoneType
 
-Inputs = sys.argv
+n = int(sys.argv[1])
+max_player = sys.argv[2]
+initial_board = sys.argv[3]
+stop = int(sys.argv[4])
 
-N = int(Inputs[1])
-T = int(Inputs[4])
-MaxDepth = 7
-MaxPlayer = Inputs[2]
-BoardString = Inputs[3]
+start = time.time()
 
-opponent = {'x' : 'o', 'o' : 'x'}
-#creates a 2d matrix from the gievn input strin gas a board
-def createBoardFromString(board_str, n):
-    board = np.array(list(board_str)).reshape(n+3, n)
-    return board
+B = [[0]*n for N in range(0,(n+3))]
 
-#checks whether the given state is the goal state or not
-def isGoal(board, player1):
-    board = board['board']
-    if list(board.diagonal()).count(player1) == N:
-        return True
-    if list(np.flip(board, axis = 1).diagonal()).count(player1) == N:
-        return True
-    for i in range(0,N):
-        #check for row
-        if list(board[i,:]).count(player1) == N:
-            return True
-        #check for column
-        if list(board[0:-3,i]).count(player1) == N:
-            return True
+A = []
+l = 0
 
-    return False
+parent = {}
 
-#successor
-def successors(initial_board, player):
-    successors = []
-    board = initial_board['board']
-    for i in range(N):
-        empty_spots = list(board[:,i]).count(".")
-        #drop
-        if empty_spots != 0:
-            board_drop = np.array(board)
-            board_drop[empty_spots-1,i] = player
-            new_board = {'board': board_drop, 'currentDepth': initial_board['currentDepth'] + 1, \
-                         'action' : initial_board['action'] + [i+1]}
-            successors.append(new_board)
-        #rotate
-        if empty_spots != N+3:
-            board_rotate = np.array(board)
-            board_rotate[empty_spots:,i] = np.roll(board[empty_spots:,i],1)
-            if not (board_rotate == board).all():
-                new_board = {'board': board_rotate, 'currentDepth': initial_board['currentDepth'] + 1,\
-                             'action' : initial_board['action'] + [-i-1]}
-                successors.append(new_board)
-    return np.array(successors)  
-          
-def checkInRows(board, currentPlayer):
-    board_state = board['board']
-    favourables = sum(int(list(board_state[i,:]).count(currentPlayer) in range(int((N+1)/2), N)) for i in range(N))
-    notfavourables = sum(int(list(board_state[i,:]).count(opponent[currentPlayer]) in range(int((N+1)/2), N)) for i in range(N))
-    return favourables - notfavourables
+while l < len(initial_board):
+    A += [initial_board[l:l+3]]
+    l = l + 3
 
-def checkInColumns(board, currentPlayer):
-    board_state = board['board']
-    favourables = sum(int(list(board_state[:,i]).count(currentPlayer) in range(int((N+4)/2), N)) for i in range(N))
-    notfavourables = sum(int(list(board_state[:,i]).count(opponent[currentPlayer]) in range(int((N+4)/2), N)) for i in range(N))
-    return favourables - notfavourables
+p = -1
+q = -1
 
-def available_pos(curr_board, player):
-    count_player = 0
-    count_opp = 0
-    board = curr_board['board']
-    for i in range (N):
-        #Row
-        if list(board[i,:]).count(opponent[player]) == 0:
-            count_player += 1
-        #Row for opponent
-        if list(board[i,:]).count(player) == 0:
-            count_opp += 1
-        #Column
-        if list(board[0:-3,i]).count(opponent[player]) == 0:
-            count_player += 1
-        #Column for opponent
-        if list(board[0:-3,i]).count(player) == 0:
-            count_opp += 1
-    #Diagonals
-    if list(board.diagonal()).count(opponent[player]) == 0:
-        count_player += 1
-    if list(np.flip(board, axis = 1).diagonal()).count(opponent[player]) == 0:
-        count_player += 1
-    #Diagonals for opponent
-    if list(board.diagonal()).count(player) == 0:
-        count_opp += 1
-    if list(np.flip(board, axis = 1).diagonal()).count(opponent[player]) == 0:
-        count_opp += 1
-    return count_player - count_opp
+last_row = n+3-1
+last_col = n-1
+first_row = -1
+first_col = -1
 
-#This is the evaluation function which returns the value of the leaf node.
-#If it is a goal state then the value will be the maximum else it will be some heuristic
-def leafValue(board, currentPlayer):
-    '''
-    isGoalForMIN = isGoal(board, currentPlayer)
-    isGoalForMAX = isGoal(board, currentPlayer)
-    if MaxPlayer != currentPlayer and isGoalForMIN \
-    and isGoalForMAX:
-        return -1 * (N*(N+3) / board['currentDepth'])
-    if isGoalForMAX:
-        return 1 * (N*(N+3) / board['currentDepth'])
+for i in A:
+    p += 1
+    q = -1
+    for j in i:
+        q += 1
+        B[p][q] = j
+
+def ef_poss_mvs(board):
+    count = 0
+    for col in range(last_col, -1, -1):
+        for row in range(last_row, n-(n+1), -1):
+            if(row == n):
+                continue
+            elif (board[row][col] == '.' and board[row-1][col] == '.'):
+                count = count + 1
+                break
+            elif ((board[row][col] == 'x' and board[row-1][col] == '.') or (board[row][col] == 'o' and board[row-1][col] == '.')):
+                count = count + 1
+                break
+    return count
+
+def ef_rem_sqr(board):
+    count = 0
+    for col in range(last_col, -1, -1):
+        for row in range(last_row, n-1, -1):
+            if board[row][col] == '.':
+                count = count + 1
+    return count
+
+def ef_nxn(board, player):
+    val = 0
+    # row check 
+    for row in range(0,n):
+        flag = 0
+        for col in range(0,n):
+            if(board[row][col] == "." or board[row][col] == player ):
+                flag += 1
+            if(flag == n):
+                val = val + 1
+
+    # col check
+    for col in range(0,n):
+        flag = 0
+        for row in range(0,n):
+            if(board[row][col] == "." or board[row][col] == player):
+                flag += 1
+            if(flag == n):
+                val = val + 1
+            
+    # diag check
+    flag = True
+    for diag in range(0,n):
+        if(board[diag][diag] == "." or board[diag][diag] == player):
+            continue
+        else:
+            flag = False
+        if flag == False:
+            break
+    if(flag):
+        val = val + 1
+        
+    # Top Right - Bottom Left Empty Check
+    flag = True
+    for row in range(0,n):
+        col = n - row - 1
+        if(board[row][col] == "." or board[row][col] == player):
+            continue
+        else:
+            flag = False
+        if flag == False:
+            break
+    if(flag):
+        val = val + 1
+        
+    return val
+
+def eval_func(board, player):
+    if player == 'x':
+        nxn = ef_nxn(board, 'x') - ef_nxn(board, 'o')
     else:
-        if isGoalForMIN:
-            return -1 * (N*(N+3) / board['currentDepth'])
-    h_value = (checkInColumns(board, currentPlayer) + checkInRows(board, currentPlayer)) * (N*(N+3) / board['currentDepth'])
-    return h_value
-    '''
-    return available_pos(board, currentPlayer)
+        nxn = ef_nxn(board, 'o') - ef_nxn(board, 'x')
+    e = 3*(nxn + ef_poss_mvs(board)) - 2*(ef_rem_sqr(board))
+    return e
 
-def isLeafNode(board):
-    #only for drop
-    if '.' not in board['board']:
-        return True
-    if isGoal(board, 'o') or isGoal(board, 'x'):
-        return True
-    if board['currentDepth'] == MaxDepth:
-       return True
-    return False
+def mov_row(board, col, player):
+    new_board = copy.deepcopy(board)
+    for row in range (last_row, first_row, -1):
+        if new_board[first_row+1][col] != ".":
+            return
+        if(new_board[row][col] == "."):
+            new_board[row][col] = player
+            break
+    return new_board
 
-def MAXValue(board, alpha, beta, player):
-    if isLeafNode(board):
-        return leafValue(board, player)
-    for succ in successors(board, opponent[player]):
-        alpha = max(alpha, MINValue(succ, alpha, beta, opponent[player]))
-        if alpha >= beta:
-            return alpha
-    return alpha
+def mov_col(board, col):
+    new_board = copy.deepcopy(board)
+    for row in range (last_row,first_row,-1):
+        if(row == first_row+1):
+            break
+        else:
+            temp = 0
+            if(new_board[row][col] == "."):
+                break
+            else:
+                temp = new_board[row][col]
+                if(new_board[row - 1][col] == "."):
+                    break
+                else:
+                    new_board[row][col] = new_board[row - 1][col]
+                    new_board[row - 1][col] = temp
+    return new_board
+
+def successors(board, player):
+    succ_board = []
+    for col in range (last_col, first_col, -1):
+        temp_board = mov_row(board, col, player)
+        if type(temp_board) != NoneType:
+            succ_board += [temp_board]
+        else:
+            continue
+    for col in range (last_col, first_col,-1):
+        temp_board = mov_col(board, col)
+        if board != temp_board:
+            succ_board += [temp_board]
+        else:
+            continue
+    return succ_board
+        
+def is_goal(b):
+    for row in range (0, n):                    # check for each row for top n rows
+        flag = 0                                # initialize flag to 0 for each check
+        for col in range(0, n):                 # increment column by 1
+            if(b[row][col] == max_player):      # if pebble already there
+                flag += 1                       # increment flag by 1 
+        if flag == n:                           # when flag = n, 3 pebbles for player exist
+            return True                         # terminal state (player wins)
     
-def MINValue(board, alpha, beta, player):
-    if isLeafNode(board):
-        return leafValue(board, player)
-    for succ in successors(board, opponent[player]):
-        beta = min(beta, MAXValue(succ, alpha, beta, opponent[player]))
-        if alpha >= beta:
-            return beta
-    return beta
+    for col in range(0, n):                     # check for each column
+        flag = 0                                # initialize flag to 0 for each check
+        for row in range (0, n):                # increment row by 1
+            if(b[row][col] == max_player):      # if pebble already exists in square
+                flag += 1                       # increment flag by 1 
+        if flag == n:                           # when flag = n, n pebbles for player exist
+            return True                         # terminal state (player wins)
+    
+    flag = 0
+    x = range(0, n)
+    y = range(n-1, -1, -1)
+    for row, col in zip(x, x):                  # left-to-right diagonal check
+        if b[row][col] == max_player:
+            flag += 1
+        if flag == n:
+            return True
+    
+    flag = 0
+    for row, col in zip(x, y):
+        if b[row][col] == max_player:           # right-to-left diagonal check
+            flag += 1
+        if flag == n:
+            return True
+        
+    return False    
 
+def successors_root(board, player):
+    succ_board = []
+    for col in range (last_col, first_col, -1):
+        temp_board = mov_row(board, col, player)
+        if type(temp_board) != NoneType:
+            succ_board += [(col+1, temp_board)]
+        else:
+            continue
+    for col in range (last_col, first_col,-1):
+        temp_board = mov_col(board, col)
+        if board != temp_board:
+            succ_board += [(-(col+1), temp_board)]
+        else:
+            continue
+    return succ_board
 
-def AlphaBetaDecision(board):
-    #return a move that leads to the board corresponding to the maximum of the 
-    #minimum values of the min successors
-    pool_tuples = []
-    pool_values = []
-    alpha = -sys.maxsize
-    beta = sys.maxsize
-    board['currentDepth'] = 0
-    bestmove = []
-    #bestvalue = -sys.maxsize
-    for succ in successors(board, MaxPlayer):
-        current_value = MINValue(succ, alpha, beta, MaxPlayer)
-        print("Min value = " + str(current_value))
-        pool_tuples.append((current_value, succ))
-        pool_values.append(current_value)
-        if current_value > alpha:
-            alpha = current_value
-            bestmove = succ
-    print ("maxvalue = " + str(alpha))
-    return bestmove
-initial_board = {'board' : createBoardFromString(BoardString, N),
-                 'currentDepth' : 0, 'action' : []}  
+def max_val(board, depth, alpha, beta, player):
+    if depth == 0 or is_goal(board):
+        e = eval_func(board, player)
+        return  e
+    val = float('-inf')
+    for s in successors(board, player):
+        val = max(val, min_val(s, depth-1, alpha, beta, 'x'))
+        if (val <= beta):
+            return val
+        alpha = max(alpha, val)
+    return val
 
-start_time = time.time()
-nextmove = AlphaBetaDecision(initial_board)
-print(time.time() - start_time)
-print(str(initial_board) + "\n\n" + str(nextmove))
-print(str(nextmove['action'][-1]) + " " + ''.join(list(nextmove['board'].flatten())))
+def min_val(board, depth, alpha, beta, player):
+    if depth == 0 or is_goal(board) or time.time() > start + (stop-2):
+        e = eval_func(board, player)
+        return e
+    val = float('inf')
+    for s in successors(board, player):
+        val = min(val, max_val(s, depth-1, alpha, beta, 'o'))
+        if (val >= alpha):
+            return val
+        beta = min(beta, val)
+    return val
+
+def betsy(board, depth, alpha, beta, player):
+    action = []
+    for (mov, s) in successors_root(board, player):
+        if depth == 0 or is_goal(s):
+            m = eval_func(s, player)
+            return mov, s
+        elif player == 'x':
+            m = min_val(s, depth, alpha, beta, 'o')
+        else:
+            m = min_val(s, depth, alpha, beta, 'x')
+        action.append([mov, s, m])
+
+    max_e = max(l[2] for l in action)
+    
+    for a in action:
+        if a[2] == max_e:
+            return a[0], a[1]
+    
+    
+if is_goal(B):
+    print "You've already won!"
+    exit()
+
+d = 1
+while time.time() != start + stop:
+    d = d + 1
+    mov, res_board = betsy(B,d,float('-inf'), float('inf'), max_player)
+    print mov, "".join("".join(col for col in row) for row in res_board)
