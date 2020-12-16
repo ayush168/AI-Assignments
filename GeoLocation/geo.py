@@ -2,7 +2,7 @@
 """
 Created on Fri Oct 19 03:25:07 2018
 
-@author: Ayush-PC
+@author: Ayush
 """
 import sys
 import re
