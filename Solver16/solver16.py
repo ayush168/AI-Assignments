@@ -20,7 +20,7 @@ def shift_col(state, col, dir):
     s[col::4] = change_col[-dir:] + change_col[:-dir]
     return (s, ("U" if dir == -1 else "D") + str(col+1) )
 
-# pretty-print board state
+# pretty-print board state 
 def print_board(row):
     for j in range(0, 16, 4):
         print ('%3d %3d %3d %3d' % (row[j:(j+4)]))
